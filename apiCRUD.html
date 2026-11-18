@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Mini CRUD - Aula API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        input,
+        button {
+            padding: 8px;
+            margin: 4px 0;
+            font-size: 14px;
+        }
+
+        input[type="text"] {
+            width: 60%;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f4f4f4;
+            padding: 10px;
+            margin: 6px 0;
+            border-radius: 6px;
+        }
+
+        .btn-editar {
+            background: #f0ad4e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        .btn-excluir {
+            background: #d9534f;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        .msg {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .msg.ok {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .msg.erro {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dashboard {
+            margin: 16px 0 24px;
+            padding: 18px;
+            border-radius: 12px;
+            background: #f1f3f5;
+        }
+
+        .dashboard h2 {
+            margin-top: 0;
+        }
+
+        .dashboard-metricas {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .dashboard-metricas>div {
+            padding: 12px;
+            border-radius: 8px;
+            background: white;
+        }
+
+        .dashboard-metricas strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 1.5rem;
+        }
+
+        .dashboard-progresso {
+            margin-top: 16px;
+        }
+
+        .controles-lista {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .controles-lista input[type="search"] {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .backup-tools {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .status-importacao {
+            margin: 8px 0 16px;
+            padding: 10px;
+            border-radius: 6px;
+            background: #e9ecef;
+        }
+
+        .status-importacao.erro {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-importacao[hidden] {
+            display: none;
+        }
+
+        #barraProgresso {
+            display: block;
+            width: 100%;
+            height: 18px;
+            margin-top: 8px;
+        }
+
+        .quadro {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .coluna {
+            min-height: 220px;
+            padding: 15px;
+            border-radius: 25px;
+            background: #f1f3f5;
+        }
+
+        .coluna h2 {
+            margin-top: 4px;
+            font-size: 1.1rem;
+        }
+
+        .cards {
+            display: grid;
+            gap: 10px;
+        }
+
+        .card {
+            padding: 12px;
+            border-radius: 6px;
+            background: white;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+            overflow-wrap: anywhere;
+        }
+
+        .acoes-card {
+            display: flex;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .acoes-card button {
+            cursor: pointer;
+        }
+
+        .acoes-card button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        #toastContainer {
+            position: fixed;
+            z-index: 1000;
+            right: 16px;
+            bottom: 16px;
+            left: 16px;
+            display: grid;
+            justify-items: center;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            display: flex;
+            width: min(480px, 100%);
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            background: #262626;
+            color: white;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            pointer-events: auto;
+        }
+
+        .toast button {
+            flex-shrink: 0;
+            border: 0;
+            background: transparent;
+            color: #a8d7ff;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .toast-acao {
+            white-space: nowrap;
+        }
+
+        @media (max-width: 720px) {
+            .quadro {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-metricas {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        #telaLogin {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(3px);
+        }
+
+        #formLogin {
+            width: min(360px);
+            padding: 24px;
+            border-radius: 8px;
+            background: white;
+        }
+
+        #formLogin input {
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        #telaLogin[hidden] {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="telaLogin" hidden>
+        <form id="formLogin">
+            <h2>Digite seu token</h2>
+            <input type="text" id="inputToken" required>
+            <button type="submit">Entrar</button>
+        </form>
+    </div>
+
+
+
+    <div class="header">
+        <h1>📝 Minhas Tarefas</h1>
+        <button id="btnSair">Sair/Trocar Token</button>
+    </div>
+
+    <section class="dashboard" aria-labelledby="tituloDashboard">
+        <h2 id="tituloDashboard">Resumo das tarefas</h2>
+        <div class="dashboard-metricas">
+            <div>
+                <span>Total geral</span>
+                <strong id="cntTotal">0</strong>
+            </div>
+            <div>
+                <span>Concluídas</span>
+                <strong id="cntConcluidas">0</strong>
+            </div>
+            <div>
+                <span>Pendentes</span>
+                <strong id="cntPendentes">0</strong>
+            </div>
+        </div>
+        <div class="dashboard-progresso">
+            <label for="barraProgresso">Progresso de conclusão: <span id="textoProgresso">0%</span></label>
+            <progress id="barraProgresso" max="100" value="0">0%</progress>
+        </div>
+    </section>
+
+    <input type="text" id="inputDescricao" placeholder="Digite uma nova tarefa...">
+    <button id="btnAdicionar">➕ Adicionar</button>
+    <button id="btnAtualizar">🔄 Recarregar</button>
+
+    <section class="backup-tools" aria-label="Backup e importação de tarefas">
+        <button type="button" id="btnExportarBackup">Exportar Backup (.json)</button>
+        <label for="inputArquivoImportacao">Importação em lote (.json)</label>
+        <input type="file" id="inputArquivoImportacao" accept=".json,application/json">
+    </section>
+    <div id="statusImportacao" class="status-importacao" role="status" aria-live="polite" hidden></div>
+
+    <div class="controles-lista">
+        <input type="search" id="txtFiltro" placeholder="Buscar tarefas..." aria-label="Buscar tarefas">
+        <input type="search" id="txtFiltroUsuario" placeholder="Usuário (todos)"
+            aria-label="Filtrar tarefas por usuário">
+        <select id="selOrdem" aria-label="Ordenar tarefas">
+            <option value="recentes">Mais recentes primeiro</option>
+            <option value="antigos">Mais antigos primeiro</option>
+            <option value="alfabetica">Ordem alfabética (A-Z)</option>
+            <option value="comprimento">Comprimento do texto (menor primeiro)</option>
+        </select>
+    </div>
+
+    <div id="mensagem" class="msg"></div>
+    <div id="contador"></div>
+    <div id="quadroTarefas" class="quadro">
+        <section class="coluna">
+            <h2>A Fazer</h2>
+            <div class="cards" id="tarefasFazer"></div>
+        </section>
+        <section class="coluna">
+            <h2>Em Progresso</h2>
+            <div class="cards" id="tarefasProgresso"></div>
+        </section>
+        <section class="coluna">
+            <h2>Concluído</h2>
+            <div class="cards" id="tarefasPronto"></div>
+        </section>
+    </div>
+    <div id="toastContainer" aria-live="polite" aria-relevant="additions removals"></div>
+
+    <script>
+        // ⚙️ CONFIGURAÇÃO — troque pelo seu token
+        const BASE_URL = "https://vps9431.publiccloud.com.br/apiatitus/";
+        // const TOKEN = "3ade0a9c549923cb4265a18bea2dc6d6";
+
+        const input = document.getElementById("inputDescricao");
+        const msgBox = document.getElementById("mensagem");
+        const contador = document.getElementById("contador");
+        const telaLogin = document.getElementById("telaLogin");
+        const inputArquivoImportacao = document.getElementById("inputArquivoImportacao");
+        const statusImportacao = document.getElementById("statusImportacao");
+        const colunas = {
+            FAZER: document.getElementById("tarefasFazer"),
+            PROGRESSO: document.getElementById("tarefasProgresso"),
+            PRONTO: document.getElementById("tarefasPronto")
+        };
+        let todasTarefas = [];
+        let tarefasAtuais = [];
+        let usuarioAutenticado = null;
+        const exclusoesPendentes = new Map();
+        const statusOrdem = ["FAZER", "PROGRESSO", "PRONTO"];
+
+        // 📢 Função para mostrar mensagens
+        function mostrarMsg(texto, tipo = "ok") {
+            msgBox.textContent = texto;
+            msgBox.className = `msg ${tipo}`;
+            setTimeout(() => msgBox.className = "msg", 3000);
+        }
+
+        // Recupera o token do armazenamento local ou solicita login 
+        function obterTokenSessao() {
+            return localStorage.getItem("user_token");
+        }
+
+        async function iniciarSessao() {
+            try {
+                await carregarUsuarioAutenticado();
+                await listarTarefas();
+            } catch (erro) {
+                console.error(erro);
+                telaLogin.hidden = false;
+                alert("Não foi possível identificar o usuário do token salvo. Informe o token novamente.");
+            }
+        }
+
+        // função chamada no início da sessão quando não possui token salvo, ou quando o usuário deseja informar um novo token
+        async function estabelecerSessao(novoToken) {
+            try {
+                await carregarUsuarioAutenticado(novoToken);
+
+                // salva token no cache e oculta a tela de login
+                localStorage.setItem("user_token", novoToken);
+                telaLogin.hidden = true;
+                await listarTarefas();
+            } catch (erro) {
+                alert("Erro de Autenticação: O token informado não foi aceito pelo servidor.");
+            }
+
+        }
+
+        // Função para carregar o usuário autenticado com base no token
+        async function carregarUsuarioAutenticado(token = obterTokenSessao()) { // se nenhum token for fornecido, tenta obter do armazenamento local através da função obterTokenSessao()
+            if (!token) throw new Error("Token de autenticação não encontrado.");
+
+            // Envia uma requisição HTTP ao endpoint me.php, retorna o usuário se token válido.
+            const resposta = await fetch(`${BASE_URL}me.php?token=${encodeURIComponent(token)}`);
+            if (!resposta.ok) throw new Error("Não foi possível identificar o usuário autenticado.");
+
+            // Converte o corpo da resposta em objeto
+            const dados = await resposta.json();
+
+            // Esta expressão é equivalente a verificar se dados existe antes de acessar dados.usuario
+            const usuario = dados && dados.usuario;
+            if (!usuario || typeof usuario.usuario !== "string" || !usuario.usuario.trim()) {
+                throw new Error("A resposta do servidor não contém o usuário autenticado.");
+            }
+
+            // Armazena o objeto do usuário no estado global.
+            usuarioAutenticado = usuario;
+        }
+
+        // 📖 LISTAR
+        // função que lista as tarefas
+        async function listarTarefas() {
+            try {
+                const TOKEN = obterTokenSessao();
+
+                // verifica o token e retorna as tarefas na resposta
+                const resposta = await fetch(`${BASE_URL}read.php?token=${TOKEN}`);
+                const tarefas = await resposta.json();
+                todasTarefas = tarefas.filter(t => !exclusoesPendentes.has(String(t.id)));
+                aplicarFiltroEOrdenacao();
+
+            } catch (erro) {
+                console.error(erro);
+                mostrarMsg("Erro ao listar tarefas.", "erro");
+            }
+        }
+
+        function aplicarFiltroEOrdenacao() {
+            const termo = document.getElementById("txtFiltro").value.trim().toLocaleLowerCase("pt-BR");
+            const usuario = document.getElementById("txtFiltroUsuario").value.trim().toLocaleLowerCase("pt-BR");
+            const criterio = document.getElementById("selOrdem").value;
+            const filtrados = todasTarefas.filter(tarefa =>
+                String(tarefa.descricao || "").toLocaleLowerCase("pt-BR").includes(termo) &&
+                (!usuario || String(tarefa.usuario || "").trim().toLocaleLowerCase("pt-BR") === usuario)
+            );
+
+            if (criterio === "alfabetica") {
+                filtrados.sort((a, b) =>
+                    lerDescricao(a.descricao).texto.localeCompare(
+                        lerDescricao(b.descricao).texto,
+                        "pt-BR",
+                        { sensitivity: "base" }
+                    )
+                );
+            } else if (criterio === "recentes") {
+                filtrados.sort((a, b) => Number(b.id) - Number(a.id));
+            } else if (criterio === "antigos") {
+                filtrados.sort((a, b) => Number(a.id) - Number(b.id));
+            } else if (criterio === "comprimento") {
+                filtrados.sort((a, b) =>
+                    lerDescricao(a.descricao).texto.length - lerDescricao(b.descricao).texto.length
+                );
+            }
+
+            tarefasAtuais = filtrados;
+            renderizarTarefas(tarefasAtuais);
+        }
+
+        function tarefaPertenceAoUsuario(tarefa) {
+            const nomeTarefa = String(tarefa.usuario || "").trim().toLocaleLowerCase("pt-BR");
+            const nomeAutenticado = usuarioAutenticado
+                ? String(usuarioAutenticado.usuario || "").trim().toLocaleLowerCase("pt-BR")
+                : "";
+            return Boolean(nomeAutenticado) && nomeTarefa === nomeAutenticado;
+        }
+
+        function lerDescricao(descricao) {
+            const texto = String(descricao || "");
+            const prefixo = texto.match(/^\[(FAZER|PROGRESSO|PRONTO|OK)\]\s*/i);
+            const status = prefixo ? prefixo[1].toUpperCase() : "FAZER";
+            return {
+                status: status === "OK" ? "PRONTO" : status,
+                texto: prefixo ? texto.slice(prefixo[0].length) : texto
+            };
+        }
+
+        function descricaoComStatus(descricao, status) {
+            return `[${status}] ${lerDescricao(descricao).texto.trim()}`;
+        }
+
+        // recebe uma lista já filtrada e ordenada e transforma cada tarefa em um cartão visual dentro da coluna correspondente
+        function renderizarTarefas(tarefas) {
+
+            // Limpa as colunas antes de renderizar as tarefas, evita que tarefas antigas permaneçam na tela.
+            Object.values(colunas).forEach(coluna => coluna.replaceChildren());
+
+            // Para cada tarefa da lista filtrada, o código cria um novo cartão
+            tarefas.forEach(tarefa => {
+                const estado = lerDescricao(tarefa.descricao);
+
+                // cria uma tag article com a classe card
+                const card = document.createElement("article");
+                card.className = "card";
+
+                // cria uma div com id e descrição da tarefa, e adiciona ao card. ex: #123 — Fazer o relatório
+                const descricao = document.createElement("div");
+                descricao.textContent = `#${tarefa.id} — ${estado.texto}`;
+                card.appendChild(descricao);
+
+                const acoes = document.createElement("div");
+                acoes.className = "acoes-card";
+
+                // permite que apenas o usuário que criou a tarefa possa gerenciá-la (mover, editar ou excluir)
+                const podeGerenciar = tarefaPertenceAoUsuario(tarefa);
+
+                const indiceStatus = statusOrdem.indexOf(estado.status);
+                if (indiceStatus > 0) {
+                    const voltar = document.createElement("button");
+                    voltar.type = "button";
+                    voltar.textContent = "⬅️";
+                    voltar.setAttribute("aria-label", "Mover para a coluna anterior");
+                    voltar.disabled = !podeGerenciar;
+                    voltar.addEventListener("click", () => moverStatus(tarefa, statusOrdem[indiceStatus - 1]));
+                    acoes.appendChild(voltar);
+                }
+
+                if (indiceStatus < statusOrdem.length - 1) {
+                    const avancar = document.createElement("button");
+                    avancar.type = "button";
+                    avancar.textContent = "➡️";
+                    avancar.setAttribute("aria-label", "Mover para a próxima coluna");
+                    avancar.disabled = !podeGerenciar;
+                    avancar.addEventListener("click", () => moverStatus(tarefa, statusOrdem[indiceStatus + 1]));
+                    acoes.appendChild(avancar);
+                }
+
+                const editar = document.createElement("button");
+                editar.type = "button";
+                editar.className = "btn-editar";
+                editar.textContent = "✏️";
+                editar.setAttribute("aria-label", "Editar tarefa");
+                editar.disabled = !podeGerenciar;
+                if (!podeGerenciar) editar.title = "Somente o criador pode editar esta tarefa.";
+                editar.addEventListener("click", () => editarTarefa(tarefa));
+                acoes.appendChild(editar);
+
+                const excluir = document.createElement("button");
+                excluir.type = "button";
+                excluir.className = "btn-excluir";
+                excluir.textContent = "🗑️";
+                excluir.setAttribute("aria-label", "Excluir tarefa");
+                excluir.disabled = !podeGerenciar;
+                if (!podeGerenciar) excluir.title = "Somente o criador pode excluir esta tarefa.";
+                excluir.addEventListener("click", () => excluirTarefa(tarefa.id));
+                acoes.appendChild(excluir);
+
+                card.appendChild(acoes);
+                colunas[estado.status].appendChild(card);
+            });
+
+            contador.textContent = `Tarefas exibidas: ${tarefas.length}`;
+            atualizarDashboard(todasTarefas);
+        }
+
+        function exportarBackup() {
+            const dados = todasTarefas;
+            const conteudo = JSON.stringify(dados, null, 2);
+            const arquivo = new Blob([conteudo], { type: "application/json" });
+            const url = URL.createObjectURL(arquivo);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download = "backup_tarefas.json";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function lerTarefasDoArquivo(arquivo) {
+            return new Promise((resolve, reject) => {
+                const leitor = new FileReader();
+
+                leitor.onload = () => {
+                    try {
+                        if (typeof leitor.result !== "string") {
+                            throw new Error("Não foi possível ler o conteúdo do arquivo.");
+                        }
+
+                        const dados = JSON.parse(leitor.result);
+                        if (!Array.isArray(dados)) {
+                            throw new Error("O arquivo JSON deve conter uma lista de tarefas.");
+                        }
+
+                        const descricoes = dados.map((tarefa, indice) => {
+                            if (!tarefa || typeof tarefa !== "object" ||
+                                typeof tarefa.descricao !== "string" || !tarefa.descricao.trim()) {
+                                throw new Error(`A tarefa na posição ${indice + 1} não possui uma descrição válida.`);
+                            }
+                            return tarefa.descricao;
+                        });
+
+                        resolve(descricoes);
+                    } catch (erro) {
+                        reject(erro);
+                    }
+                };
+
+                leitor.onerror = () => reject(leitor.error || new Error("Falha ao ler o arquivo."));
+                leitor.onabort = () => reject(new Error("A leitura do arquivo foi cancelada."));
+                leitor.readAsText(arquivo);
+            });
+        }
+
+        async function importarArquivo(event) {
+            const arquivo = event.target.files[0];
+            if (!arquivo) return;
+
+            inputArquivoImportacao.disabled = true;
+            statusImportacao.hidden = false;
+            statusImportacao.className = "status-importacao";
+            statusImportacao.textContent = "Lendo arquivo...";
+
+            try {
+                if (!arquivo.name.toLowerCase().endsWith(".json")) {
+                    throw new Error("Selecione um arquivo com extensão .json.");
+                }
+
+                const descricoes = await lerTarefasDoArquivo(arquivo);
+                if (descricoes.length === 0) {
+                    statusImportacao.textContent = "O arquivo não contém tarefas para importar.";
+                    return;
+                }
+
+                const TOKEN = obterTokenSessao();
+                if (!TOKEN) throw new Error("Faça login antes de importar tarefas.");
+
+                let importadas = 0;
+                const falhas = [];
+
+                for (let indice = 0; indice < descricoes.length; indice++) {
+                    statusImportacao.textContent = `Importando ${indice + 1} de ${descricoes.length}...`;
+
+                    try {
+                        const url = `${BASE_URL}create.php?descricao=${encodeURIComponent(descricoes[indice])}&token=${encodeURIComponent(TOKEN)}`;
+                        const resposta = await fetch(url);
+                        if (!resposta.ok) {
+                            throw new Error(`Resposta HTTP ${resposta.status}`);
+                        }
+                        importadas++;
+                    } catch (erro) {
+                        console.error(`Falha ao importar a tarefa ${indice + 1}.`, erro);
+                        falhas.push(indice + 1);
+                    }
+                }
+
+                if (importadas > 0) await listarTarefas();
+
+                if (falhas.length === 0) {
+                    statusImportacao.textContent = `Importação concluída: ${importadas} de ${descricoes.length} tarefas.`;
+                } else {
+                    statusImportacao.className = "status-importacao erro";
+                    statusImportacao.textContent = `Importação parcial: ${importadas} de ${descricoes.length} concluídas. Falha nos itens: ${falhas.join(", ")}.`;
+                }
+            } catch (erro) {
+                console.error("Não foi possível importar o arquivo.", erro);
+                statusImportacao.className = "status-importacao erro";
+                statusImportacao.textContent = `Não foi possível importar: ${erro.message}`;
+            } finally {
+                inputArquivoImportacao.disabled = false;
+                inputArquivoImportacao.value = "";
+            }
+        }
+
+        // ✏️ CRIAR
+        // função que cria uma nova tarefa para o usuário do token fornecido
+        async function criarTarefa() {
+            const texto = lerDescricao(input.value).texto.trim();
+            if (!texto) {
+                mostrarMsg("Digite uma descrição!", "erro");
+                return;
+            }
+            try {
+                const TOKEN = obterTokenSessao();
+                const descricao = descricaoComStatus(input.value, lerDescricao(input.value).status);
+                await fetch(`${BASE_URL}create.php?descricao=${encodeURIComponent(descricao)}&token=${TOKEN}`);
+                input.value = "";
+                mostrarMsg("Tarefa criada com sucesso!");
+                listarTarefas();
+            } catch (erro) {
+                mostrarMsg("Erro ao criar tarefa.", "erro");
+            }
+        }
+
+        // 🔄 ATUALIZAR
+        // função que atualiza a descrição de uma tarefa existente através do prompt
+        async function editarTarefa(tarefa) {
+            if (!tarefaPertenceAoUsuario(tarefa)) {
+                mostrarMsg("Você só pode editar tarefas cadastradas por você.", "erro");
+                return;
+            }
+
+            const estado = lerDescricao(tarefa.descricao);
+            const nova = prompt("Nova descrição:", estado.texto);
+            if (nova === null || !nova.trim()) return;
+            try {
+                const TOKEN = obterTokenSessao();
+                const descricao = descricaoComStatus(nova, estado.status);
+                const resposta = await fetch(`${BASE_URL}update.php?id=${tarefa.id}&descricao=${encodeURIComponent(descricao)}&token=${TOKEN}`);
+                if (!resposta.ok) throw new Error("Falha ao atualizar tarefa");
+                tarefa.descricao = descricao;
+                aplicarFiltroEOrdenacao();
+                mostrarMsg("Tarefa atualizada!");
+            } catch (erro) {
+                console.error(erro);
+                mostrarMsg("Erro ao atualizar.", "erro");
+            }
+        }
+
+        function excluirTarefa(id) {
+            const indice = todasTarefas.findIndex(tarefa => String(tarefa.id) === String(id));
+            if (indice < 0) return;
+            if (!tarefaPertenceAoUsuario(todasTarefas[indice])) {
+                mostrarMsg("Você só pode excluir tarefas cadastradas por você.", "erro");
+                return;
+            }
+
+            const [tarefa] = todasTarefas.splice(indice, 1);
+            const chave = String(tarefa.id);
+            const toast = document.createElement("div");
+            toast.className = "toast";
+            toast.setAttribute("role", "status");
+
+            const texto = document.createElement("span");
+            texto.textContent = "Tarefa removida.";
+
+            const botaoDesfazer = document.createElement("button");
+            botaoDesfazer.type = "button";
+            botaoDesfazer.textContent = "Desfazer (5s)";
+            botaoDesfazer.addEventListener("click", () => desfazerExclusao(chave));
+
+            const acao = document.createElement("span");
+            acao.className = "toast-acao";
+            acao.append(document.createTextNode("[ "), botaoDesfazer, document.createTextNode(" ]"));
+
+            toast.append(texto, acao);
+            document.getElementById("toastContainer").appendChild(toast);
+            aplicarFiltroEOrdenacao();
+
+            const exclusao = {
+                tarefa,
+                indice,
+                toast,
+                temporizador: setTimeout(() => efetivarExclusao(chave), 5000)
+            };
+            exclusoesPendentes.set(chave, exclusao);
+        }
+
+        function desfazerExclusao(chave) {
+            const exclusao = exclusoesPendentes.get(chave);
+            if (!exclusao) return;
+
+            clearTimeout(exclusao.temporizador);
+            exclusoesPendentes.delete(chave);
+            exclusao.toast.remove();
+            todasTarefas.splice(exclusao.indice, 0, exclusao.tarefa);
+            aplicarFiltroEOrdenacao();
+        }
+
+        async function efetivarExclusao(chave) {
+            const exclusao = exclusoesPendentes.get(chave);
+            if (!exclusao) return;
+
+            exclusao.toast.remove();
+            try {
+                const TOKEN = obterTokenSessao();
+                const resposta = await fetch(`${BASE_URL}delete.php?id=${encodeURIComponent(chave)}&token=${encodeURIComponent(TOKEN)}`);
+                if (!resposta.ok) throw new Error("Falha ao excluir tarefa");
+                exclusoesPendentes.delete(chave);
+            } catch (erro) {
+                console.error(erro);
+                exclusoesPendentes.delete(chave);
+                todasTarefas.splice(exclusao.indice, 0, exclusao.tarefa);
+                aplicarFiltroEOrdenacao();
+                mostrarMsg("Não foi possível excluir a tarefa. Ela foi restaurada.", "erro");
+            }
+        }
+
+        async function moverStatus(tarefa, novoStatus) {
+            if (!tarefaPertenceAoUsuario(tarefa)) {
+                mostrarMsg("Você só pode alterar tarefas cadastradas por você.", "erro");
+                return;
+            }
+
+            const descricaoAnterior = tarefa.descricao;
+            const novaDescricao = descricaoComStatus(descricaoAnterior, novoStatus);
+            tarefa.descricao = novaDescricao;
+            aplicarFiltroEOrdenacao();
+
+            try {
+                const TOKEN = obterTokenSessao();
+                const resposta = await fetch(`${BASE_URL}update.php?id=${tarefa.id}&descricao=${encodeURIComponent(novaDescricao)}&token=${TOKEN}`);
+                if (!resposta.ok) throw new Error("Falha ao mover tarefa");
+            } catch (erro) {
+                console.error(erro);
+                tarefa.descricao = descricaoAnterior;
+                aplicarFiltroEOrdenacao();
+                mostrarMsg("Não foi possível mover a tarefa. Tente novamente.", "erro");
+            }
+        }
+
+        function atualizarDashboard(tarefas) {
+            const total = tarefas.length;
+            const concluidas = tarefas.filter(t => lerDescricao(t.descricao).status === "PRONTO").length;
+            const pendentes = total - concluidas;
+            const porcentagem = total > 0 ? (concluidas / total) * 100 : 0;
+            const porcentagemExibida = porcentagem.toLocaleString("pt-BR", {
+                maximumFractionDigits: 2
+            });
+
+            document.getElementById("cntTotal").innerText = total;
+            document.getElementById("cntConcluidas").innerText = concluidas;
+            document.getElementById("cntPendentes").innerText = pendentes;
+            const barra = document.getElementById("barraProgresso");
+            barra.value = porcentagem;
+            barra.textContent = `${porcentagemExibida}%`;
+            document.getElementById("textoProgresso").textContent = `${porcentagemExibida}%`;
+        }
+
+        // 🎬 Eventos da tela
+        document.getElementById("btnAdicionar").addEventListener("click", criarTarefa);
+        document.getElementById("btnAtualizar").addEventListener("click", listarTarefas);
+        document.getElementById("btnExportarBackup").addEventListener("click", exportarBackup);
+        inputArquivoImportacao.addEventListener("change", importarArquivo);
+        document.getElementById("txtFiltro").addEventListener("input", aplicarFiltroEOrdenacao);
+        document.getElementById("txtFiltroUsuario").addEventListener("input", aplicarFiltroEOrdenacao);
+        document.getElementById("selOrdem").addEventListener("change", aplicarFiltroEOrdenacao);
+        document.getElementById("formLogin").addEventListener("submit", event => {
+            event.preventDefault();
+            const token = document.getElementById("inputToken").value.trim();
+            if (token) estabelecerSessao(token);
+        });
+        document.getElementById("btnSair").addEventListener("click", () => {
+            localStorage.removeItem("user_token");
+            usuarioAutenticado = null;
+            exclusoesPendentes.forEach(exclusao => {
+                clearTimeout(exclusao.temporizador);
+                exclusao.toast.remove();
+            });
+            exclusoesPendentes.clear();
+            todasTarefas = [];
+            tarefasAtuais = [];
+            renderizarTarefas(tarefasAtuais);
+            telaLogin.hidden = false;
+        });
+
+        // 🚀 Carrega ao abrir
+        if (obterTokenSessao()) {
+            iniciarSessao();
+        } else {
+            telaLogin.hidden = false;
+        }
+    </script>
+</body>
+
+</html>

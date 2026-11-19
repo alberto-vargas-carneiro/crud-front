@@ -535,6 +535,8 @@
                 const podeGerenciar = tarefaPertenceAoUsuario(tarefa);
 
                 const indiceStatus = statusOrdem.indexOf(estado.status);
+
+                // Se a tarefa não estiver na primeira coluna (FAZER), cria um botão para mover para a coluna anterior (⬅️)
                 if (indiceStatus > 0) {
                     const voltar = document.createElement("button");
                     voltar.type = "button";
@@ -545,6 +547,7 @@
                     acoes.appendChild(voltar);
                 }
 
+                // Se a tarefa não estiver na última coluna (PRONTO), cria um botão para mover para a próxima coluna (➡️)
                 if (indiceStatus < statusOrdem.length - 1) {
                     const avancar = document.createElement("button");
                     avancar.type = "button";
@@ -581,6 +584,176 @@
 
             contador.textContent = `Tarefas exibidas: ${tarefas.length}`;
             atualizarDashboard(todasTarefas);
+        }
+
+        function atualizarDashboard(tarefas) {
+
+            // pega o total de tarefas
+            const total = tarefas.length;
+
+            // filtra as tarefas concluídas (status PRONTO) e conta quantas são
+            const concluidas = tarefas.filter(t => lerDescricao(t.descricao).status === "PRONTO").length;
+
+            // o que sobrar está pendente
+            const pendentes = total - concluidas;
+
+            // porcentagem de tarefas concluídas, arredondada para duas casas decimais
+            const porcentagem = total > 0 ? (concluidas / total) * 100 : 0;
+            const porcentagemExibida = porcentagem.toLocaleString("pt-BR", {
+                maximumFractionDigits: 2
+            });
+
+            document.getElementById("cntTotal").innerText = total;
+            document.getElementById("cntConcluidas").innerText = concluidas;
+            document.getElementById("cntPendentes").innerText = pendentes;
+            const barra = document.getElementById("barraProgresso");
+            barra.value = porcentagem;
+            barra.textContent = `${porcentagemExibida}%`;
+            document.getElementById("textoProgresso").textContent = `${porcentagemExibida}%`;
+        }
+
+        // ✏️ CRIAR
+        // função que cria uma nova tarefa para o usuário do token fornecido
+        async function criarTarefa() {
+
+            // extrai o texto da descrição da tarefa, removendo espaços em branco no início e no fim
+            const texto = lerDescricao(input.value).texto.trim();
+
+            if (!texto) {
+                mostrarMsg("Digite uma descrição!", "erro");
+                return;
+            }
+            try {
+                const TOKEN = obterTokenSessao();
+                const descricao = descricaoComStatus(input.value, lerDescricao(input.value).status);
+                await fetch(`${BASE_URL}create.php?descricao=${encodeURIComponent(descricao)}&token=${TOKEN}`);
+                input.value = "";
+                mostrarMsg("Tarefa criada com sucesso!");
+                listarTarefas();
+            } catch (erro) {
+                mostrarMsg("Erro ao criar tarefa.", "erro");
+            }
+        }
+
+        // 🔄 ATUALIZAR
+        // função que atualiza a descrição de uma tarefa existente através do prompt
+        async function editarTarefa(tarefa) {
+            if (!tarefaPertenceAoUsuario(tarefa)) {
+                mostrarMsg("Você só pode editar tarefas cadastradas por você.", "erro");
+                return;
+            }
+
+            const estado = lerDescricao(tarefa.descricao);
+            const nova = prompt("Nova descrição:", estado.texto);
+            if (nova === null || !nova.trim()) return;
+            try {
+                const TOKEN = obterTokenSessao();
+                const descricao = descricaoComStatus(nova, estado.status);
+                const resposta = await fetch(`${BASE_URL}update.php?id=${tarefa.id}&descricao=${encodeURIComponent(descricao)}&token=${TOKEN}`);
+                if (!resposta.ok) throw new Error("Falha ao atualizar tarefa");
+                tarefa.descricao = descricao;
+                aplicarFiltroEOrdenacao();
+                mostrarMsg("Tarefa atualizada!");
+            } catch (erro) {
+                console.error(erro);
+                mostrarMsg("Erro ao atualizar.", "erro");
+            }
+        }
+
+        function excluirTarefa(id) {
+            const indice = todasTarefas.findIndex(tarefa => String(tarefa.id) === String(id));
+            if (indice < 0) return;
+            if (!tarefaPertenceAoUsuario(todasTarefas[indice])) {
+                mostrarMsg("Você só pode excluir tarefas cadastradas por você.", "erro");
+                return;
+            }
+
+            // remove temporariamente a tarefa da lista, guarda na variável e exibe um toast com opção de desfazer
+            const [tarefa] = todasTarefas.splice(indice, 1);
+
+            // O ID da tarefa é convertido em texto e usado como identificador da exclusão pendente
+            const chave = String(tarefa.id);
+            
+            const toast = document.createElement("div");
+            toast.className = "toast";
+            toast.setAttribute("role", "status");
+
+            const texto = document.createElement("span");
+            texto.textContent = "Tarefa removida.";
+
+            const botaoDesfazer = document.createElement("button");
+            botaoDesfazer.type = "button";
+            botaoDesfazer.textContent = "Desfazer (5s)";
+            botaoDesfazer.addEventListener("click", () => desfazerExclusao(chave));
+
+            const acao = document.createElement("span");
+            acao.className = "toast-acao";
+            acao.append(document.createTextNode("[ "), botaoDesfazer, document.createTextNode(" ]"));
+
+            toast.append(texto, acao);
+            document.getElementById("toastContainer").appendChild(toast);
+            aplicarFiltroEOrdenacao();
+
+            const exclusao = {
+                tarefa,
+                indice,
+                toast,
+                temporizador: setTimeout(() => efetivarExclusao(chave), 5000)
+            };
+            exclusoesPendentes.set(chave, exclusao);
+        }
+
+        function desfazerExclusao(chave) {
+            const exclusao = exclusoesPendentes.get(chave);
+            if (!exclusao) return;
+
+            clearTimeout(exclusao.temporizador);
+            exclusoesPendentes.delete(chave);
+            exclusao.toast.remove();
+            todasTarefas.splice(exclusao.indice, 0, exclusao.tarefa);
+            aplicarFiltroEOrdenacao();
+        }
+
+        async function efetivarExclusao(chave) {
+            const exclusao = exclusoesPendentes.get(chave);
+            if (!exclusao) return;
+
+            exclusao.toast.remove();
+            try {
+                const TOKEN = obterTokenSessao();
+                const resposta = await fetch(`${BASE_URL}delete.php?id=${encodeURIComponent(chave)}&token=${encodeURIComponent(TOKEN)}`);
+                if (!resposta.ok) throw new Error("Falha ao excluir tarefa");
+                exclusoesPendentes.delete(chave);
+            } catch (erro) {
+                console.error(erro);
+                exclusoesPendentes.delete(chave);
+                todasTarefas.splice(exclusao.indice, 0, exclusao.tarefa);
+                aplicarFiltroEOrdenacao();
+                mostrarMsg("Não foi possível excluir a tarefa. Ela foi restaurada.", "erro");
+            }
+        }
+
+        async function moverStatus(tarefa, novoStatus) {
+            if (!tarefaPertenceAoUsuario(tarefa)) {
+                mostrarMsg("Você só pode alterar tarefas cadastradas por você.", "erro");
+                return;
+            }
+
+            const descricaoAnterior = tarefa.descricao;
+            const novaDescricao = descricaoComStatus(descricaoAnterior, novoStatus);
+            tarefa.descricao = novaDescricao;
+            aplicarFiltroEOrdenacao();
+
+            try {
+                const TOKEN = obterTokenSessao();
+                const resposta = await fetch(`${BASE_URL}update.php?id=${tarefa.id}&descricao=${encodeURIComponent(novaDescricao)}&token=${TOKEN}`);
+                if (!resposta.ok) throw new Error("Falha ao mover tarefa");
+            } catch (erro) {
+                console.error(erro);
+                tarefa.descricao = descricaoAnterior;
+                aplicarFiltroEOrdenacao();
+                mostrarMsg("Não foi possível mover a tarefa. Tente novamente.", "erro");
+            }
         }
 
         function exportarBackup() {
@@ -691,161 +864,6 @@
                 inputArquivoImportacao.disabled = false;
                 inputArquivoImportacao.value = "";
             }
-        }
-
-        // ✏️ CRIAR
-        // função que cria uma nova tarefa para o usuário do token fornecido
-        async function criarTarefa() {
-            const texto = lerDescricao(input.value).texto.trim();
-            if (!texto) {
-                mostrarMsg("Digite uma descrição!", "erro");
-                return;
-            }
-            try {
-                const TOKEN = obterTokenSessao();
-                const descricao = descricaoComStatus(input.value, lerDescricao(input.value).status);
-                await fetch(`${BASE_URL}create.php?descricao=${encodeURIComponent(descricao)}&token=${TOKEN}`);
-                input.value = "";
-                mostrarMsg("Tarefa criada com sucesso!");
-                listarTarefas();
-            } catch (erro) {
-                mostrarMsg("Erro ao criar tarefa.", "erro");
-            }
-        }
-
-        // 🔄 ATUALIZAR
-        // função que atualiza a descrição de uma tarefa existente através do prompt
-        async function editarTarefa(tarefa) {
-            if (!tarefaPertenceAoUsuario(tarefa)) {
-                mostrarMsg("Você só pode editar tarefas cadastradas por você.", "erro");
-                return;
-            }
-
-            const estado = lerDescricao(tarefa.descricao);
-            const nova = prompt("Nova descrição:", estado.texto);
-            if (nova === null || !nova.trim()) return;
-            try {
-                const TOKEN = obterTokenSessao();
-                const descricao = descricaoComStatus(nova, estado.status);
-                const resposta = await fetch(`${BASE_URL}update.php?id=${tarefa.id}&descricao=${encodeURIComponent(descricao)}&token=${TOKEN}`);
-                if (!resposta.ok) throw new Error("Falha ao atualizar tarefa");
-                tarefa.descricao = descricao;
-                aplicarFiltroEOrdenacao();
-                mostrarMsg("Tarefa atualizada!");
-            } catch (erro) {
-                console.error(erro);
-                mostrarMsg("Erro ao atualizar.", "erro");
-            }
-        }
-
-        function excluirTarefa(id) {
-            const indice = todasTarefas.findIndex(tarefa => String(tarefa.id) === String(id));
-            if (indice < 0) return;
-            if (!tarefaPertenceAoUsuario(todasTarefas[indice])) {
-                mostrarMsg("Você só pode excluir tarefas cadastradas por você.", "erro");
-                return;
-            }
-
-            const [tarefa] = todasTarefas.splice(indice, 1);
-            const chave = String(tarefa.id);
-            const toast = document.createElement("div");
-            toast.className = "toast";
-            toast.setAttribute("role", "status");
-
-            const texto = document.createElement("span");
-            texto.textContent = "Tarefa removida.";
-
-            const botaoDesfazer = document.createElement("button");
-            botaoDesfazer.type = "button";
-            botaoDesfazer.textContent = "Desfazer (5s)";
-            botaoDesfazer.addEventListener("click", () => desfazerExclusao(chave));
-
-            const acao = document.createElement("span");
-            acao.className = "toast-acao";
-            acao.append(document.createTextNode("[ "), botaoDesfazer, document.createTextNode(" ]"));
-
-            toast.append(texto, acao);
-            document.getElementById("toastContainer").appendChild(toast);
-            aplicarFiltroEOrdenacao();
-
-            const exclusao = {
-                tarefa,
-                indice,
-                toast,
-                temporizador: setTimeout(() => efetivarExclusao(chave), 5000)
-            };
-            exclusoesPendentes.set(chave, exclusao);
-        }
-
-        function desfazerExclusao(chave) {
-            const exclusao = exclusoesPendentes.get(chave);
-            if (!exclusao) return;
-
-            clearTimeout(exclusao.temporizador);
-            exclusoesPendentes.delete(chave);
-            exclusao.toast.remove();
-            todasTarefas.splice(exclusao.indice, 0, exclusao.tarefa);
-            aplicarFiltroEOrdenacao();
-        }
-
-        async function efetivarExclusao(chave) {
-            const exclusao = exclusoesPendentes.get(chave);
-            if (!exclusao) return;
-
-            exclusao.toast.remove();
-            try {
-                const TOKEN = obterTokenSessao();
-                const resposta = await fetch(`${BASE_URL}delete.php?id=${encodeURIComponent(chave)}&token=${encodeURIComponent(TOKEN)}`);
-                if (!resposta.ok) throw new Error("Falha ao excluir tarefa");
-                exclusoesPendentes.delete(chave);
-            } catch (erro) {
-                console.error(erro);
-                exclusoesPendentes.delete(chave);
-                todasTarefas.splice(exclusao.indice, 0, exclusao.tarefa);
-                aplicarFiltroEOrdenacao();
-                mostrarMsg("Não foi possível excluir a tarefa. Ela foi restaurada.", "erro");
-            }
-        }
-
-        async function moverStatus(tarefa, novoStatus) {
-            if (!tarefaPertenceAoUsuario(tarefa)) {
-                mostrarMsg("Você só pode alterar tarefas cadastradas por você.", "erro");
-                return;
-            }
-
-            const descricaoAnterior = tarefa.descricao;
-            const novaDescricao = descricaoComStatus(descricaoAnterior, novoStatus);
-            tarefa.descricao = novaDescricao;
-            aplicarFiltroEOrdenacao();
-
-            try {
-                const TOKEN = obterTokenSessao();
-                const resposta = await fetch(`${BASE_URL}update.php?id=${tarefa.id}&descricao=${encodeURIComponent(novaDescricao)}&token=${TOKEN}`);
-                if (!resposta.ok) throw new Error("Falha ao mover tarefa");
-            } catch (erro) {
-                console.error(erro);
-                tarefa.descricao = descricaoAnterior;
-                aplicarFiltroEOrdenacao();
-                mostrarMsg("Não foi possível mover a tarefa. Tente novamente.", "erro");
-            }
-        }
-
-        function atualizarDashboard(tarefas) {
-            const total = tarefas.length;
-            const concluidas = tarefas.filter(t => lerDescricao(t.descricao).status === "PRONTO").length;
-            const pendentes = total - concluidas;
-            const porcentagem = total > 0 ? (concluidas / total) * 100 : 0;
-            const porcentagemExibida = porcentagem.toLocaleString("pt-BR", {
-                maximumFractionDigits: 2
-            });
-
-            document.getElementById("cntTotal").innerText = total;
-            document.getElementById("cntConcluidas").innerText = concluidas;
-            document.getElementById("cntPendentes").innerText = pendentes;
-            const barra = document.getElementById("barraProgresso");
-            barra.value = porcentagem;
-            barra.textContent = `${porcentagemExibida}%`;
-            document.getElementById("textoProgresso").textContent = `${porcentagemExibida}%`;
         }
 
         // 🎬 Eventos da tela
